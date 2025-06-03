@@ -1,4 +1,5 @@
-![](https://img.shields.io/github/license/Vezarachan/GeoConformalPrediction?style=flat-square)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+
 # GeoConformal Prediction
 
 A powerful, model-agnostic tool to measure spatially varying uncertainty of machine learning models. GeoConfromal is an extension of Conformal prediction.
