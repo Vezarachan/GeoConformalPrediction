@@ -3,6 +3,7 @@ import pandas as pd
 import geopandas as gpd
 from typing import Callable
 from numpy.typing import NDArray
+from .base import GeoConformalBase
 from .utils import gaussian_kernel, kernel_smoothing, weighted_quantile
 
 
@@ -14,6 +15,7 @@ def abs_nonconformity_score_f(pred: NDArray, gt: NDArray) -> NDArray:
             :return: list of nonconformity scores
             """
     return np.abs(pred - gt)
+
 
 class GeoConformalRegressorResults:
     def __init__(self, geo_uncertainty: NDArray, uncertainty: float, coords: NDArray, pred_value: NDArray, true_value: NDArray,
@@ -38,21 +40,15 @@ class GeoConformalRegressorResults:
         return geo_uncertainty_gpd
 
 
-class GeoConformalRegressor:
+class GeoConformalRegressor(GeoConformalBase):
     """
     Parameters
     ----------
     predict_f: spatial prediction function (regression or interpolation)
     """
-    def __init__(self,
-                 predict_f: Callable, x_calib: NDArray, y_calib: NDArray, coord_calib: NDArray,
+    def __init__(self, predict_f: Callable, x_calib: NDArray, y_calib: NDArray, coord_calib: NDArray,
                  bandwidth: float | int, miscoverage_level: float = 0.1):
-        self.predict_f = predict_f
-        self.bandwidth = bandwidth
-        self.x_calib = x_calib
-        self.y_calib = y_calib
-        self.coord_calib = coord_calib
-        self.miscoverage_level = miscoverage_level
+        super().__init__(predict_f, x_calib, y_calib, coord_calib, bandwidth, miscoverage_level)
 
     def geo_conformalize(self,
                          x_test: NDArray,
@@ -70,3 +66,28 @@ class GeoConformalRegressor:
         lower_bound = y_test_pred - geo_uncertainty
         coverage = np.mean((y_test >= lower_bound) & (y_test <= upper_bound))
         return GeoConformalRegressorResults(geo_uncertainty, uncertainty, coord_test, y_test_pred, y_test, upper_bound, lower_bound, coverage)
+
+
+class GeoConformalQuantileRegressor(GeoConformalBase):
+    def __init__(self, predict_f: Callable, x_calib: NDArray, y_calib: NDArray, coord_calib: NDArray,
+                 bandwidth: float | int, miscoverage_level: float = 0.1):
+        super().__init__(predict_f, x_calib, y_calib, coord_calib, bandwidth, miscoverage_level)
+
+    def geo_conformalize(self,
+                         x_test: NDArray,
+                         y_test: NDArray,
+                         coord_test: NDArray) -> GeoConformalRegressorResults:
+        y_calib_pred_low, y_calib_pred_high = self.predict_f(self.x_calib)
+        nonconformity_scores = np.maximum(self.y_calib - y_calib_pred_high, y_calib_pred_low - self.y_calib)
+        N = nonconformity_scores.shape[0]
+        weights = kernel_smoothing(coord_test, self.coord_calib, self.bandwidth)
+        q_level = np.ceil((1 - self.miscoverage_level) * (N + 1)) / N
+        qhat = weighted_quantile(nonconformity_scores, weights, q_level)
+        y_test_pred_low, y_test_pred_high = self.predict_f(x_test)
+        upper_bound = y_test_pred_high + qhat
+        lower_bound = y_test_pred_low - qhat
+        coverage = np.mean((y_test >= lower_bound) & (y_test <= upper_bound))
+        geo_uncertainty = (upper_bound - lower_bound) / 2
+        uncertainty = np.mean(upper_bound - lower_bound)
+        return GeoConformalRegressorResults(geo_uncertainty, uncertainty, coord_test, np.zeros_like(y_test), y_test, upper_bound, lower_bound, coverage)
+

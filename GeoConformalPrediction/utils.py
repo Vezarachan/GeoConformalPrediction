@@ -47,6 +47,6 @@ def weighted_quantile(scores: NDArray, weights: NDArray, q: float):
     cumulative_weights = np.cumsum(weights_sorted, axis=1)
     total_weights = cumulative_weights[:, -1][:, None]
     normalized_cumulative_weights = cumulative_weights / total_weights
-    idx = np.sum(normalized_cumulative_weights < q, axis=1)
+    idx = np.sum(normalized_cumulative_weights <= q, axis=1)
     quantiles = scores_sorted[np.arange(N_test), idx]
     return quantiles

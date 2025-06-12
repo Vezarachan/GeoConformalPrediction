@@ -1,2 +1,2 @@
-from .GeoConfromalRegressor import GeoConformalRegressor
+from .GeoConfromalRegressor import GeoConformalRegressor, GeoConformalQuantileRegressor
 from .GeoConformalClassifier import GeoConformalClassifier
